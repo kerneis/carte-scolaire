@@ -65,6 +65,7 @@
                          return false;
                        }
 
+                       // feature must have a display_name, a lat and lon field.
                        function onGeocode(feature) {
                          const address = feature.display_name || feature.formatted;
 
@@ -131,9 +132,15 @@
                          });
                        }
 
+                       function onMapClick(e) {
+                         // TODO: reverse geocoding?
+                         feature = { display_name: e.latlng.toString(), lat: e.latlng.lat, lon: e.latlng.lng };
+                         onGeocode(feature);
+                       }
+
                        window.onload = function() {
                          // Setup map to Paris lat/lon
-                         map = L.map('map').setView([48.8589, 2.3469], 13);
+                         map = L.map('map').setView([48.8589, 2.3469], 13).on("click", onMapClick);
                          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                            maxZoom: 19,
                            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
