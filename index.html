@@ -1,0 +1,149 @@
+        <!DOCTYPE html>
+        <head>
+                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin=""/>
+                 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+                <script>
+                        let map;
+                        let etabs = {};
+
+                        function anneeScol() {
+                           const annee=2021;
+                           return annee+"-"+(annee+1);
+                        }
+
+                        // category IN secteurs, etablissements
+                        // type_etab IN colleges, elementaires
+                        // query https://help.opendatasoft.com/apis/ods-search-v1/#query-language
+                        // geo = [lat, lon, distance]
+                        function opendataParisUrl(category, type_etab, query, geo=[]) {
+                          const dataset = [category, "scolaires", type_etab].join("-");
+                          if (query != "") {
+                            query = "(" + query + ") ";
+                          }
+                          query += "annee_scol=" + anneeScol();
+                          const url = "https://opendata.paris.fr/api/records/1.0/search/?dataset="+dataset+"&q="+ encodeURIComponent(query) + "&geofilter.distance="+geo.join(",");
+                          return url;
+                       }
+
+                       function fetchUrl(url, jsonCallback) {
+                        console.log("Fetching " + url);
+                        const requestOptions = { method: 'GET', };
+                        return fetch(url, requestOptions).then(response => response.json()).then(result => { console.log(result); return jsonCallback(result);}).catch(error => console.log('error', error));
+                       }
+
+                       // Swap lat and lon within a MultiPolygon represented as nested arrays, because opendata.paris.fr cannot get their model consistent.
+                       function fixMultiPolygon(mp) { return mp.map(mp => mp.map(p => p.map (c => [c[1], c[0]]))); }
+
+                       function search() {
+                         const addr = document.querySelector("#address").value + ", Paris, France";
+                         //const key="c88bbf9a8c3e4d2a8c0da8be728da9ac";
+                         //const url = "https://api.geoapify.com/v1/geocode/search?text=" + encodeURIComponent(addr) + "&apiKey="+key;
+                         const url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(addr);
+                         fetchUrl(url, result => {
+                           // result = result.features
+                           if (result.length == 0) {
+                             console.error("Couldn't find address");
+                             return;
+                           }
+                           if (result.length > 1) {
+                             console.warn("Couldn't find unique address, picking first result");
+                           }
+                           // const feature = result[0].properties;
+                           const feature = result[0];
+                           onGeocode(result[0]);
+                         });
+                         return false;
+                       }
+
+                       function onGeocode(feature) {
+                         const address = feature.display_name || feature.formatted;
+
+                         // TODO: custom icon
+                         L.marker([feature.lat, feature.lon]).bindPopup(address).addTo(map);
+
+                         const distance = 10; // en mètres
+                         // TODO: elementaires
+                         const url = opendataParisUrl("secteurs", "colleges", "", [feature.lat, feature.lon, distance]);
+                         fetchUrl(url, result => {
+                           if (result.nhits == 0) {
+                             console.error("Couldn't find sector");
+                             return;
+                           }
+                           if (result.nhits > 1) {
+                             console.warn("Couldn't find unique sector, picking first result");
+                           }
+                           onSecteur(result.records[0].fields);
+                         });
+                       }
+
+                       function onSecteur(fields) {
+                         const coords = fixMultiPolygon(fields.geo_shape.coordinates);
+                         L.polygon(coords).bindPopup(fields.etiquette).addTo(map);
+
+                         // The datamodel is crappy, lots of numered fields instead of an array.
+                         // Iterate over only the "libelle" fields, and fetch all the details in a separate API call.
+                         // This is necessary anyway because this response does not contain the lat/lon of each school.
+                         const libs = [fields.lib_etab_1,fields.lib_etab_2,fields.lib_etab_3,fields.lib_etab_3,fields.lib_etab_4]
+                                           .filter(s => s != undefined)
+                                           .map(lib => "libelle=" + lib);
+
+                         const url = opendataParisUrl("etablissements", fields.type_etabl == "Collège" ? "colleges" : "elementaires", libs.join(" OR "));
+                         fetchUrl(url, result => result.records.forEach(onEtab));
+                       }
+
+                       function formatEtab(f) {
+                         return [f.type_etabl, f.libelle, f.addresse, " (" + f.arr_libelle + ")"].join(" ");
+                       }
+
+                       function onEtab(etab) {
+                         const f = etab.fields;
+                         let m = L.marker(f.geo_point_2d);
+                         m.addTo(map);
+
+                         const query = "academie=PARIS " + f.libelle;
+                         const url = "https://data.education.gouv.fr/api/records/1.0/search/?dataset=fr-en-ips_colleges&q="+encodeURIComponent(query);
+                         fetchUrl(url, result => {
+                           if (result.nhits != 1) {
+                             console.error("Couldn't find IPS");
+                             return;
+                           }
+                           m.bindPopup(formatEtab(f) + "<br>IPS = "+result.records[0].fields.ips);
+                         });
+                       }
+
+                       window.onload = function() {
+                         // Setup map to Paris lat/lon
+                         map = L.map('map').setView([48.8589, 2.3469], 13);
+                         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                           maxZoom: 19,
+                           attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                           }).addTo(map);
+                         // Auto-search address if in url params
+                         let params = new URLSearchParams(document.location.search);
+                         let addr = params.get("address");
+                         if (addr != null && addr != "") {
+                           document.querySelector("#address").value = addr;
+                           search();
+                         }
+                       }
+                </script>
+
+<style>
+#map { height: 900px; }
+</style>
+        <body>
+                <form onsubmit="return search();">
+                        <label for="address">Adresse :</label>
+<input type="text" id="address" name="address">
+<input type="submit" value="Recherche">
+                </form>
+                 <div id="map"></div>
+
+                <p>Données :
+                <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips_ecoles">IPS écoles</a>,
+                <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips_colleges">IPS collèges</a>,
+                <a href="https://opendata.paris.fr/explore/dataset/etablissementgs-scolaires-ecoles-elementaires">Écoles</a>,
+                <a href="https://opendata.paris.fr/explore/dataset/etablissementgs-scolaires-colleges">Collèges</a>,
+                <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-ecoles-elementaires">Secteurs élémentaires</a>,
+                <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-colleges">Secteurs collèges</a>.
+
