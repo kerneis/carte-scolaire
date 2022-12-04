@@ -25,6 +25,16 @@
                           return url;
                        }
 
+                        function geolocEducationUrl(query, geo=[]) {
+                          const dataset = "fr-en-adresse-et-geolocalisation-etablissements-premier-et-second-degre";
+                          if (query != "") {
+                            query = "(" + query + ") ";
+                          }
+                          query += "libelle_academie=Paris";
+                          const url = "https://data.education.gouv.fr/api/records/1.0/search/?dataset="+dataset+"&q="+ encodeURIComponent(query) + "&geofilter.distance="+geo.join(",");
+                          return url;
+                       }
+
                        function fetchUrl(url, jsonCallback) {
                         console.log("Fetching " + url);
                         const requestOptions = { method: 'GET', };
@@ -62,49 +72,56 @@
                          L.marker([feature.lat, feature.lon]).bindPopup(address).addTo(map);
 
                          const distance = 10; // en mètres
-                         // TODO: elementaires
-                         const url = opendataParisUrl("secteurs", "colleges", "", [feature.lat, feature.lon, distance]);
-                         fetchUrl(url, result => {
-                           if (result.nhits == 0) {
-                             console.error("Couldn't find sector");
-                             return;
-                           }
-                           if (result.nhits > 1) {
-                             console.warn("Couldn't find unique sector, picking first result");
-                           }
-                           onSecteur(result.records[0].fields);
+                         ["ecoles-elementaires", "colleges"].forEach(secteur => {
+                           const url = opendataParisUrl("secteurs", secteur, "", [feature.lat, feature.lon, distance]);
+                           fetchUrl(url, result => {
+                             if (result.nhits == 0) {
+                               console.error("Couldn't find sector");
+                               return;
+                             }
+                             if (result.nhits > 1) {
+                               console.warn("Couldn't find unique sector, picking first result");
+                             }
+                             onSecteur(secteur, result.records[0].fields);
+                           });
                          });
                        }
 
-                       function onSecteur(fields) {
+                       function onSecteur(secteur, fields) {
                          const coords = fixMultiPolygon(fields.geo_shape.coordinates);
-                         L.polygon(coords).bindPopup(fields.etiquette).addTo(map);
+                         const color = secteur == "colleges" ? "orange" : "purple";
+                         L.polygon(coords, {color: color}).bindPopup(fields.etiquette.replaceAll("\n","<br>")).addTo(map);
 
                          // The datamodel is crappy, lots of numered fields instead of an array.
                          // Iterate over only the "libelle" fields, and fetch all the details in a separate API call.
                          // This is necessary anyway because this response does not contain the lat/lon of each school.
-                         const libs = [fields.lib_etab_1,fields.lib_etab_2,fields.lib_etab_3,fields.lib_etab_3,fields.lib_etab_4]
+                         const adrs = [fields.adr_etab_1,fields.adr_etab_2,fields.adr_etab_3,fields.adr_etab_3,fields.adr_etab_4]
                                            .filter(s => s != undefined)
-                                           .map(lib => "libelle=" + lib);
+                                           .map(adr => "adresse_uai=" + adr);
 
-                         const url = opendataParisUrl("etablissements", fields.type_etabl == "Collège" ? "colleges" : "elementaires", libs.join(" OR "));
-                         fetchUrl(url, result => result.records.forEach(onEtab));
+                         const url = geolocEducationUrl(adrs.join(" OR "));
+                         fetchUrl(url, result => result.records.filter(e => e.fields.nature_uai_libe.startsWith(secteur == "colleges" ? "COLLEGE" : "ECOLE")).forEach(onEtab));
                        }
 
                        function formatEtab(f) {
-                         return [f.type_etabl, f.libelle, f.addresse, " (" + f.arr_libelle + ")"].join(" ");
+                         return [f.appellation_officielle, f.adresse_uai, f.libelle_commune].join(", ");
                        }
 
                        function onEtab(etab) {
                          const f = etab.fields;
-                         let m = L.marker(f.geo_point_2d);
+                         let m = L.marker(f.position);
                          m.addTo(map);
 
-                         const query = "academie=PARIS " + f.libelle;
-                         const url = "https://data.education.gouv.fr/api/records/1.0/search/?dataset=fr-en-ips_colleges&q="+encodeURIComponent(query);
+                         const dataset = "fr-en-ips_" + (f.nature_uai_libe == "COLLEGE" ? "colleges" : "ecoles");
+                         const query = "uai=" + f.numero_uai;
+                         const url = "https://data.education.gouv.fr/api/records/1.0/search/?dataset="+dataset+"&q="+encodeURIComponent(query);
                          fetchUrl(url, result => {
-                           if (result.nhits != 1) {
+                           if (result.nhits == 0) {
                              console.error("Couldn't find IPS");
+                             return;
+                           }
+                           if (result.nhits > 1) {
+                             console.warn("Couldn't find unique IPS, displaying all of them.");
                              return;
                            }
                            m.bindPopup(formatEtab(f) + "<br>IPS = "+result.records[0].fields.ips);
