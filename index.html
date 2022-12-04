@@ -91,6 +91,9 @@
                          const coords = fixMultiPolygon(fields.geo_shape.coordinates);
                          const color = secteur == "colleges" ? "orange" : "purple";
                          L.polygon(coords, {color: color}).bindPopup(fields.etiquette.replaceAll("\n","<br>")).addTo(map);
+                         if (secteur == "colleges") {
+                           map.fitBounds(L.latLngBounds(coords.flat().flat()));
+                         }
 
                          // The datamodel is crappy, lots of numered fields instead of an array.
                          // Iterate over only the "libelle" fields, and fetch all the details in a separate API call.
@@ -104,7 +107,7 @@
                        }
 
                        function formatEtab(f) {
-                         return [f.appellation_officielle, f.adresse_uai, f.libelle_commune].join(", ");
+                         return [f.denomination_principale + " " + f.patronyme_uai, f.adresse_uai, f.libelle_commune].join("<br>");
                        }
 
                        function onEtab(etab) {
