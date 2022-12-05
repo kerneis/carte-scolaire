@@ -64,9 +64,10 @@
                        function fixMultiPolygon(mp) { return mp.map(mp => mp.map(p => p.map (c => [c[1], c[0]]))); }
 
                        function search() {
-                         const addr = document.querySelector("#address").value + ", Paris, France";
-                         const url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(addr);
+                         const street = document.querySelector("#address").value;
+                         const url = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&city=Paris&country=France&street=" + encodeURIComponent(street);
                          fetchUrl(url, result => {
+                           result = result.filter(f => f["class"] == "building");
                            if (result.length == 0) {
                              console.error("Couldn't find address");
                              return;
@@ -82,6 +83,7 @@
 
                        // feature must have a display_name, a lat and lon field.
                        function onGeocode(feature) {
+                         if (feature.address != undefined) feature.display_name = [feature.address.house_number, feature.address.road, feature.address.postcode, feature.address.city].join(" ");
                          const address = feature.display_name;
 
                          cleanupLayers();
@@ -156,7 +158,7 @@
                        }
 
                        function onMapClick(e) {
-                         const url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + e.latlng.lat + "&lon=" + e.latlng.lng;
+                         const url = "https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=" + e.latlng.lat + "&lon=" + e.latlng.lng;
                          fetchUrl(url, result => {
                            let feature = { display_name: e.latlng.toString(), lat: e.latlng.lat, lon: e.latlng.lng };
                            if (result.length == 0) {
