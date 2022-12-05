@@ -135,6 +135,7 @@
                        function onEtab(etab) {
                          const f = etab.fields;
                          let m = L.marker(f.position /*, {icon: f.nature_uai_libe == "COLLEGE" ? collegeIcon : schoolIcon}*/);
+                         m.bindPopup(formatEtab(f));
                          m.addTo(map);
                          layers.push(m);
 
