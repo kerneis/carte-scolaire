@@ -68,7 +68,7 @@
                          const street = document.querySelector("#address").value;
                          const url = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&city=Paris&country=France&street=" + encodeURIComponent(street);
                          fetchUrl(url, result => {
-                           result = result.filter(f => f["class"] == "building");
+                           result = result.filter(f => f["class"] == "building" || f["type"] == "house" || f["class"] == "place");
                            if (result.length == 0) {
                              console.error("Couldn't find address");
                              return;
