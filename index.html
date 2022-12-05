@@ -65,11 +65,8 @@
 
                        function search() {
                          const addr = document.querySelector("#address").value + ", Paris, France";
-                         //const key="c88bbf9a8c3e4d2a8c0da8be728da9ac";
-                         //const url = "https://api.geoapify.com/v1/geocode/search?text=" + encodeURIComponent(addr) + "&apiKey="+key;
                          const url = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(addr);
                          fetchUrl(url, result => {
-                           // result = result.features
                            if (result.length == 0) {
                              console.error("Couldn't find address");
                              return;
@@ -77,7 +74,6 @@
                            if (result.length > 1) {
                              console.warn("Couldn't find unique address, picking first result");
                            }
-                           // const feature = result[0].properties;
                            const feature = result[0];
                            onGeocode(result[0]);
                          });
@@ -86,7 +82,7 @@
 
                        // feature must have a display_name, a lat and lon field.
                        function onGeocode(feature) {
-                         const address = feature.display_name || feature.formatted;
+                         const address = feature.display_name;
 
                          cleanupLayers();
                          let m = L.marker([feature.lat, feature.lon], {icon: houseIcon}).bindPopup(address).addTo(map);
