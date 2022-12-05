@@ -4,7 +4,26 @@
                  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
                 <script>
                         let map;
-                        let etabs = {};
+                        let layers = [];
+
+                        function cleanupLayers() {
+                         layers.forEach(l => l.remove());
+                         layers = [];
+                        }
+
+                        var BuildingIcon = L.Icon.extend({
+                          options: {
+                            shadowUrl: '',
+                            iconSize:     [40, 40],
+                            shadowSize:   [0, 0],
+                            iconAnchor:   [20, 20],
+                            shadowAnchor: [0, 0],
+                            popupAnchor:  [0, 0]
+                          }
+                        });
+                        var schoolIcon = new BuildingIcon({iconUrl: 'school.png'}),
+                          collegeIcon = new BuildingIcon({iconUrl: 'university.png'}),
+                          houseIcon = new BuildingIcon({iconUrl: 'residence.png'});
 
                         function anneeScol() {
                            const annee=2021;
@@ -69,10 +88,11 @@
                        function onGeocode(feature) {
                          const address = feature.display_name || feature.formatted;
 
-                         // TODO: custom icon
-                         L.marker([feature.lat, feature.lon]).bindPopup(address).addTo(map);
+                         cleanupLayers();
+                         let m = L.marker([feature.lat, feature.lon], {icon: houseIcon}).bindPopup(address).addTo(map);
+                         layers.push(m);
 
-                         const distance = 10; // en mètres
+                         const distance = 1; // en mètres
                          ["ecoles-elementaires", "colleges"].forEach(secteur => {
                            const url = opendataParisUrl("secteurs", secteur, "", [feature.lat, feature.lon, distance]);
                            fetchUrl(url, result => {
@@ -91,7 +111,8 @@
                        function onSecteur(secteur, fields) {
                          const coords = fixMultiPolygon(fields.geo_shape.coordinates);
                          const color = secteur == "colleges" ? "orange" : "purple";
-                         L.polygon(coords, {color: color}).bindPopup(fields.etiquette.replaceAll("\n","<br>")).addTo(map);
+                         let p = L.polygon(coords, {color: color}).bindPopup(fields.etiquette.replaceAll("\n","<br>")).addTo(map);
+                         layers.push(p);
                          if (secteur == "colleges") {
                            map.fitBounds(L.latLngBounds(coords.flat().flat()));
                          }
@@ -99,11 +120,15 @@
                          // The datamodel is crappy, lots of numered fields instead of an array.
                          // Iterate over only the "libelle" fields, and fetch all the details in a separate API call.
                          // This is necessary anyway because this response does not contain the lat/lon of each school.
+                         // TODO: some addresses are bogus in Paris database (eg. COLLEGE LUCIE FAURE), match on name instead?
+                         const libs = [fields.lib_etab_1,fields.lib_etab_2,fields.lib_etab_3,fields.lib_etab_3,fields.lib_etab_4]
+                                           .filter(s => s != undefined)
+                                           .map(lib => "patronyme_uai=" + lib.split("(")[0]);
                          const adrs = [fields.adr_etab_1,fields.adr_etab_2,fields.adr_etab_3,fields.adr_etab_3,fields.adr_etab_4]
                                            .filter(s => s != undefined)
-                                           .map(adr => "adresse_uai=" + adr);
+                                           .map(adr => "adresse_uai=" + adr.split("(")[0]);
 
-                         const url = geolocEducationUrl(adrs.join(" OR "));
+                         const url = geolocEducationUrl(libs.concat(adrs).join(" OR "));
                          fetchUrl(url, result => result.records.filter(e => e.fields.nature_uai_libe.startsWith(secteur == "colleges" ? "COLLEGE" : "ECOLE")).forEach(onEtab));
                        }
 
@@ -113,8 +138,9 @@
 
                        function onEtab(etab) {
                          const f = etab.fields;
-                         let m = L.marker(f.position);
+                         let m = L.marker(f.position /*, {icon: f.nature_uai_libe == "COLLEGE" ? collegeIcon : schoolIcon}*/);
                          m.addTo(map);
+                         layers.push(m);
 
                          const dataset = "fr-en-ips_" + (f.nature_uai_libe == "COLLEGE" ? "colleges" : "ecoles");
                          const query = "uai=" + f.numero_uai;
@@ -173,4 +199,5 @@
                 <a href="https://opendata.paris.fr/explore/dataset/etablissementgs-scolaires-colleges">Collèges</a>,
                 <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-ecoles-elementaires">Secteurs élémentaires</a>,
                 <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-colleges">Secteurs collèges</a>.
+                <a href="https://www.flaticon.com/packs/building-14">Icônes</a>.
 
