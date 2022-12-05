@@ -1,5 +1,6 @@
         <!DOCTYPE html>
         <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
                  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin=""/>
                  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
                 <script>
@@ -188,17 +189,23 @@
                 </script>
 
 <style>
-#map { height: 900px; }
+body {
+    padding: 0;
+    margin: 0;
+}
+html, body, #map {
+    height: 100%;
+    width: 100vw;
+}
+form { position: fixed; z-index: 10; background-color: white;}
+#map { z-index: 0; }
 </style>
         <body>
                 <form onsubmit="return search();">
                         <label for="address">Adresse :</label>
 <input type="text" id="address" name="address">
 <input type="submit" value="Recherche">
-                </form>
-                 <div id="map"></div>
-
-                <p>Données :
+                Données :
                 <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips_ecoles">IPS écoles</a>,
                 <a href="https://data.education.gouv.fr/explore/dataset/fr-en-ips_colleges">IPS collèges</a>,
                 <a href="https://opendata.paris.fr/explore/dataset/etablissementgs-scolaires-ecoles-elementaires">Écoles</a>,
@@ -206,4 +213,7 @@
                 <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-ecoles-elementaires">Secteurs élémentaires</a>,
                 <a href="https://opendata.paris.fr/explore/dataset/secteurs-scolaires-colleges">Secteurs collèges</a>.
                 <a href="https://www.flaticon.com/packs/building-14">Icônes</a>.
+                </form>
+                 <div id="map"></div>
+
 
