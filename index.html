@@ -66,19 +66,23 @@
 
                        function search() {
                          const street = document.querySelector("#address").value;
+                         // Perform address search
                          const url = "https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&city=Paris&country=France&street=" + encodeURIComponent(street);
                          fetchUrl(url, result => {
-                           result = result.filter(f => f["class"] == "building" || f["type"] == "house" || f["class"] == "place");
+                           result = result.filter(f => f["class"] == "building" || f["class"] == "place" || f["class"] == "highway");
                            if (result.length == 0) {
                              console.error("Couldn't find address");
+                             updateStreet(street, undefined);
                              return;
                            }
                            if (result.length > 1) {
                              console.warn("Couldn't find unique address, picking first result");
                            }
                            const feature = result[0];
+                           updateStreet(street, { lat: feature.lat, lng: feature.lon });
                            onGeocode(result[0]);
                          });
+                         // Prevent page refresh
                          return false;
                        }
 
@@ -158,6 +162,23 @@
                          });
                        }
 
+                       function updateStreet(street, latlng) {
+                             // Update search box
+                             document.querySelector("#address").value = street;
+                             // Update URL params
+                             const href = new URL(window.location.href);
+                             if (street != undefined) href.searchParams.set('address', street);
+                             else href.searchParams.delete('address');
+                             if (latlng != undefined) {
+                               href.searchParams.set('lat', latlng.lat);
+                               href.searchParams.set('lng', latlng.lng);
+                             } else {
+                               href.searchParams.delete('lat');
+                               href.searchParams.delete('lng');
+                             }
+                             window.history.replaceState("", "", href.toString());
+                       }
+
                        function onMapClick(e) {
                          const url = "https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=" + e.latlng.lat + "&lon=" + e.latlng.lng;
                          fetchUrl(url, result => {
@@ -166,6 +187,8 @@
                              console.error("Couldn't find address");
                            } else {
                              feature = result;
+                             const street = [feature.address.house_number, feature.address.road].filter(e => e != undefined).join(" ");
+                             updateStreet(street, e.latlng);
                            }
                            onGeocode(feature);
                          });
@@ -183,6 +206,15 @@
                          let addr = params.get("address");
                          if (addr != null && addr != "") {
                            document.querySelector("#address").value = addr;
+                         }
+                         let lat = params.get("lat");
+                         let lng = params.get("lng");
+                         if (lat != null && lng != null) {
+                           // If we know the name of the address already, skip reverse coding
+                           if (addr != null && addr != "") onGeocode({ display_name: addr, lat: lat, lon: lng });
+                           else onMapClick({latlng: {lat: lat, lng: lng}});
+                         } else if (addr != null && addr != "") {
+                           // We have an address but no geocoding yet, perform it
                            search();
                          }
                        }
