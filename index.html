@@ -155,9 +155,16 @@
                        }
 
                        function onMapClick(e) {
-                         // TODO: reverse geocoding?
-                         feature = { display_name: e.latlng.toString(), lat: e.latlng.lat, lon: e.latlng.lng };
-                         onGeocode(feature);
+                         const url = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + e.latlng.lat + "&lon=" + e.latlng.lng;
+                         fetchUrl(url, result => {
+                           let feature = { display_name: e.latlng.toString(), lat: e.latlng.lat, lon: e.latlng.lng };
+                           if (result.length == 0) {
+                             console.error("Couldn't find address");
+                           } else {
+                             feature = result;
+                           }
+                           onGeocode(feature);
+                         });
                        }
 
                        window.onload = function() {
